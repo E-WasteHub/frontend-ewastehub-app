@@ -1,27 +1,60 @@
-// src/views/masyarakat/LacakPenjemputanView.jsx
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Pagination } from '../../../components/elements';
-import { LacakCard } from '../../../components/fragments/';
+import {
+  FilterCard,
+  PenjemputanMasyarakatCard,
+} from '../../../components/fragments';
 import useDarkMode from '../../../hooks/useDarkMode';
 import useDocumentTitle from '../../../hooks/useDocumentTitle';
-import useLacakPenjemputan from '../../../hooks/useLacakPenjemputan';
-
-const ITEMS_PER_PAGE = 3;
+import useMasyarakat from '../../../hooks/useMasyarakat';
 
 const LacakPenjemputanView = () => {
   useDocumentTitle('Lacak Penjemputan');
   const { isDarkMode } = useDarkMode();
   const navigate = useNavigate();
-  const { permintaan, loading } = useLacakPenjemputan();
 
-  // 🔹 State untuk pagination
+  // 🔹 ambil data dari hook
+  const { daftarPenjemputan, isLoading } = useMasyarakat();
+
+  // 🔹 state untuk filter & search
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.ceil(permintaan.length / ITEMS_PER_PAGE);
+  const itemsPerPage = 3;
 
-  // 🔹 Slice data sesuai halaman
-  const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
-  const currentData = permintaan.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+  // 🔹 filter data
+  const filteredData = useMemo(() => {
+    let result = daftarPenjemputan;
+
+    // filter status
+    if (filter === 'selesai') {
+      result = result.filter((d) => d.status_penjemputan === 'Selesai');
+    } else if (filter === 'dibatalkan') {
+      result = result.filter((d) => d.status_penjemputan === 'Dibatalkan');
+    } else if (filter === 'aktif') {
+      result = result.filter((d) =>
+        ['Diproses', 'Diterima', 'Dijemput'].includes(d.status_penjemputan)
+      );
+    }
+
+    // search kode/alamat
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (d) =>
+          d.kode_penjemputan?.toLowerCase().includes(q) ||
+          d.alamat_penjemputan?.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [daftarPenjemputan, search, filter]);
+
+  // 🔹 pagination
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentData = filteredData.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className='max-w-7xl mx-auto px-4 space-y-6'>
@@ -43,36 +76,17 @@ const LacakPenjemputanView = () => {
 
       {/* Grid layout */}
       <div className='grid grid-cols-1 lg:grid-cols-4 gap-6'>
-        {/* 🔹 Sidebar: Search + Filter */}
+        {/* Sidebar filter */}
         <div className='lg:col-span-1 space-y-6'>
-          <Card
-            className={`p-4 ${isDarkMode ? 'bg-slate-800' : 'bg-white'} border`}
-          >
-            <input
-              type='text'
-              placeholder='🔍 Cari kode atau alamat...'
-              className='w-full rounded-lg border px-3 py-2 text-sm bg-white dark:bg-slate-700 focus:ring-2 focus:ring-green-500 focus:outline-none'
-            />
-
-            <div className='mt-4'>
-              <p className='text-sm font-semibold mb-2'>Filter Status</p>
-              <ul className='space-y-2 text-sm'>
-                <li className='cursor-pointer hover:text-green-600'>
-                  📋 Semua
-                </li>
-                <li className='cursor-pointer text-yellow-600'>
-                  ⏳ Sedang Proses
-                </li>
-                <li className='cursor-pointer text-blue-600'>🚚 Dijemput</li>
-                <li className='cursor-pointer text-indigo-600'>📦 Diantar</li>
-                <li className='cursor-pointer text-green-600'>✅ Selesai</li>
-                <li className='cursor-pointer text-red-600'>❌ Dibatalkan</li>
-              </ul>
-            </div>
-          </Card>
+          <FilterCard
+            search={search}
+            setSearch={setSearch}
+            filter={filter}
+            setFilter={setFilter}
+          />
         </div>
 
-        {/* 🔹 Daftar Permintaan */}
+        {/* Daftar permintaan */}
         <div className='lg:col-span-3'>
           <Card
             className={`p-6 ${isDarkMode ? 'bg-slate-800' : 'bg-white'} border`}
@@ -85,25 +99,26 @@ const LacakPenjemputanView = () => {
               Daftar Permintaan
             </h3>
 
-            {loading ? (
-              <p className='text-gray-500'>⏳ Memuat data...</p>
-            ) : permintaan.length === 0 ? (
-              <p className='text-gray-500'>Belum ada permintaan</p>
+            {isLoading ? (
+              <p className='text-gray-500 text-center'>Memuat data...</p>
+            ) : currentData.length === 0 ? (
+              <p className='text-gray-500 text-center'>Belum ada permintaan</p>
             ) : (
               <>
                 <div className='grid grid-cols-1 gap-4'>
                   {currentData.map((req) => (
-                    <LacakCard
-                      key={req.id}
+                    <PenjemputanMasyarakatCard
+                      key={req.id_penjemputan}
                       req={req}
                       onDetail={() =>
-                        navigate(`/dashboard/masyarakat/lacak/${req.id}`)
+                        navigate(
+                          `/dashboard/masyarakat/lacak/${req.id_penjemputan}`
+                        )
                       }
                     />
                   ))}
                 </div>
 
-                {/* Pagination */}
                 {totalPages > 1 && (
                   <Pagination
                     currentPage={currentPage}

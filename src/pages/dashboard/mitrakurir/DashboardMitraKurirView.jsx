@@ -1,68 +1,28 @@
 // src/views/dashboard/mitra-kurir/DashboardMitraKurirView.jsx
 import { ArrowRight, Package, Star, Truck } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, Card, SapaanDashboard } from '../../../components/elements';
-import { PermintaanCard } from '../../../components/fragments';
+import { PenjemputanKurirCard, StatCard } from '../../../components/fragments'; // ✅ import card kurir
 import useDarkMode from '../../../hooks/useDarkMode';
 import useDocumentTitle from '../../../hooks/useDocumentTitle';
+import useMitraKurir from '../../../hooks/useMitraKurir';
+import usePengguna from '../../../hooks/usePengguna';
 
-const DashboardMitraKurirView = ({ userProfile }) => {
+const DashboardMitraKurirView = () => {
   useDocumentTitle('Dashboard Mitra Kurir');
   const { isDarkMode } = useDarkMode();
+  const { pengguna } = usePengguna();
 
-  const [daftarPermintaan, setDaftarPermintaan] = useState([]);
-  const [error, setError] = useState('');
-  const [statistikKurir] = useState({
-    totalPenjemputan: 127,
-    penjemputanBulanIni: 23,
-    rating: 4.8,
-    pendapatan: 2450000,
-  });
+  // ===== DashboardMitraKurir (pakai hook khusus kurir) =====
+  const { penjemputanTersedia, stats, isLoading, error } = useMitraKurir();
 
-  useEffect(() => {
-    const muatDaftarPermintaan = async () => {
-      try {
-        const mockPermintaan = [
-          {
-            id: 'EW-001',
-            kodePenjemputan: 'EW-001',
-            tanggal: '15 Agustus 2024',
-            alamat: 'Jl. Merdeka No. 123, Jakarta Pusat',
-            status: 'Menunggu Kurir',
-            poin: 250,
-            jenisSampah: ['Laptop', 'Smartphone'],
-            kurir: 'Belum ditentukan',
-          },
-          {
-            id: 'EW-002',
-            kodePenjemputan: 'EW-002',
-            tanggal: '15 Agustus 2024',
-            alamat: 'Jl. Sudirman No. 456, Jakarta Selatan',
-            status: 'Menunggu Kurir',
-            poin: 400,
-            jenisSampah: ['TV LED', 'Rice Cooker'],
-            kurir: 'Belum ditentukan',
-          },
-          {
-            id: 'EW-003',
-            kodePenjemputan: 'EW-003',
-            tanggal: '15 Agustus 2024',
-            alamat: 'Jl. Sudirman No. 456, Jakarta Selatan',
-            status: 'Menunggu Kurir',
-            poin: 400,
-            jenisSampah: ['TV LED', 'Rice Cooker'],
-            kurir: 'Belum ditentukan',
-          },
-        ];
-        setDaftarPermintaan(mockPermintaan);
-      } catch {
-        setError('Gagal memuat daftar permintaan');
-      }
-    };
-
-    muatDaftarPermintaan();
-  }, []);
+  const safeStats = stats || {
+    tersedia: 0,
+    sedangDikerjakan: 0,
+    selesaiHariIni: 0,
+    totalSelesai: 0,
+  };
+  // ===== END DashboardMitraKurir =====
 
   return (
     <div
@@ -72,7 +32,7 @@ const DashboardMitraKurirView = ({ userProfile }) => {
     >
       {/* Header Sapaan */}
       <SapaanDashboard
-        userProfile={userProfile}
+        pengguna={pengguna}
         subtitle={
           <span>
             Selamat datang di dashboard Mitra Kurir EWasteHub. Semangat bekerja
@@ -84,29 +44,29 @@ const DashboardMitraKurirView = ({ userProfile }) => {
       {/* Error Alert */}
       {error && <Alert type='error' message={error} />}
 
-      {/* Quick Stats */}
+      {/* 🔹 Quick Stats */}
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
         <StatCard
-          label='Rating'
-          value={statistikKurir.rating}
+          label='Permintaan Aktif'
+          value={safeStats.sedangDikerjakan}
           icon={<Star className='w-6 h-6 text-green-500' />}
           useCard={false}
         />
         <StatCard
-          label='Penjemputan Bulan Ini'
-          value={statistikKurir.penjemputanBulanIni}
+          label='Selesai Hari Ini'
+          value={safeStats.selesaiHariIni}
           icon={<Package className='w-6 h-6 text-green-500' />}
           useCard={false}
         />
         <StatCard
-          label='Total Penjemputan'
-          value={statistikKurir.totalPenjemputan}
+          label='Total Selesai'
+          value={safeStats.totalSelesai}
           icon={<Package className='w-6 h-6 text-green-500' />}
           useCard={false}
         />
       </div>
 
-      {/* Main Content */}
+      {/* 🔹 Daftar Permintaan Terbaru */}
       <Card
         className={`${
           isDarkMode
@@ -132,7 +92,9 @@ const DashboardMitraKurirView = ({ userProfile }) => {
             </Link>
           </div>
 
-          {daftarPermintaan.length === 0 ? (
+          {isLoading ? (
+            <p className='text-center text-gray-400'>⏳ Memuat data...</p>
+          ) : penjemputanTersedia.length === 0 ? (
             <div className='text-center py-8'>
               <Truck
                 className={`mx-auto h-12 w-12 ${
@@ -149,8 +111,14 @@ const DashboardMitraKurirView = ({ userProfile }) => {
             </div>
           ) : (
             <div className='grid gap-4'>
-              {daftarPermintaan.slice(0, 3).map((permintaan) => (
-                <PermintaanCard key={permintaan.id} permintaan={permintaan} />
+              {penjemputanTersedia.slice(0, 3).map((req) => (
+                <PenjemputanKurirCard
+                  key={req.id_penjemputan}
+                  req={req}
+                  onAmbil={undefined}
+                  isAktif={false}
+                  disabled={true}
+                />
               ))}
             </div>
           )}

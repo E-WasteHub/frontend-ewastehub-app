@@ -9,10 +9,56 @@ import {
   Timeline,
 } from '../../../components/fragments';
 import useDarkMode from '../../../hooks/useDarkMode';
-import useDetailLacakPenjemputan, {
-  statusSteps,
-} from '../../../hooks/useDetailLacakPenjemputan';
 import useDocumentTitle from '../../../hooks/useDocumentTitle';
+import useMasyarakat, {
+  useMasyarakatDetail,
+} from '../../../hooks/useMasyarakat';
+
+// Utility: format tanggal ke bahasa Indonesia
+const formatTanggalID = (tanggal) => {
+  if (!tanggal) return '-';
+  const d = new Date(tanggal);
+  if (isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
+// Daftar step status untuk timeline
+const daftarLangkahStatus = [
+  {
+    key: 'diproses',
+    label: 'Menunggu Kurir',
+    description: 'Permintaan berhasil dibuat',
+    timeKey: 'waktu_ditambah',
+  },
+  {
+    key: 'diterima',
+    label: 'Diterima',
+    description: 'Kurir menerima permintaan',
+    timeKey: 'waktu_diterima',
+  },
+  {
+    key: 'dijemput',
+    label: 'Dijemput Kurir',
+    description: 'Kurir sampai di lokasi masyarakat',
+    timeKey: 'waktu_dijemput',
+  },
+  {
+    key: 'selesai',
+    label: 'Selesai',
+    description: 'Sampah sudah disetor ke dropbox',
+    timeKey: 'waktu_selesai',
+  },
+  {
+    key: 'dibatalkan',
+    label: 'Dibatalkan',
+    description: 'Penjemputan dibatalkan',
+    timeKey: 'waktu_dibatalkan',
+  },
+];
 
 const DetailLacakPenjemputan = () => {
   useDocumentTitle('Detail Penjemputan');
@@ -20,140 +66,172 @@ const DetailLacakPenjemputan = () => {
   const { id_penjemputan } = useParams();
   const navigate = useNavigate();
 
-  const { detail, loading, currentStatus, handleBatalkan } =
-    useDetailLacakPenjemputan(id_penjemputan);
+  // Ambil detail penjemputan dari hook
+  const { detail: detailPenjemputan, isLoading } =
+    useMasyarakatDetail(id_penjemputan);
+  const { batalkan } = useMasyarakat();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  if (loading) {
+  // Helper untuk menentukan langkah aktif berdasarkan field waktu
+  const getLangkahAktif = (penjemputan) => {
+    if (!penjemputan) return 0;
+    if (penjemputan.waktu_dibatalkan) return -1;
+    if (penjemputan.waktu_selesai) return 3;
+    if (penjemputan.waktu_dijemput) return 2;
+    if (penjemputan.waktu_diterima) return 1;
+    if (penjemputan.waktu_ditambah) return 0;
+    return 0;
+  };
+
+  if (isLoading) {
     return (
       <div className='p-6 text-center text-gray-500'>
-        ⏳ Memuat detail penjemputan...
+        Memuat detail penjemputan...
       </div>
     );
   }
 
-  if (!detail?.penjemputan) {
+  if (!detailPenjemputan?.penjemputan) {
     return (
       <div className='p-6 text-center text-red-500'>
-        ❌ Data penjemputan tidak ditemukan
+        Data penjemputan tidak ditemukan
       </div>
     );
   }
 
-  const p = detail.penjemputan;
+  const p = detailPenjemputan.penjemputan;
+  const langkahAktif = getLangkahAktif(p);
 
   return (
     <div
-      className={`max-w-7xl mx-auto p-4 flex flex-col ${
+      className={`max-w-7xl mx-auto space-y-6 ${
         isDarkMode ? 'bg-slate-900 text-white' : 'bg-gray-50 text-gray-900'
       }`}
     >
       {/* Header */}
-      <div className='flex items-start gap-4 mb-3'>
-        <div className='flex flex-col'>
-          <h1 className='text-2xl md:text-3xl font-bold leading-tight'>
-            Detail Penjemputan
-          </h1>
-          <p
-            className={`text-sm md:text-base ${
-              isDarkMode ? 'text-gray-300' : 'text-gray-500'
-            }`}
-          >
-            Detail lengkap untuk penjemputan sampah elektronik.
-          </p>
-        </div>
-      </div>
+      <header className='mb-2'>
+        <h1 className='text-2xl md:text-2xl font-bold'>Detail Penjemputan</h1>
+        <p
+          className={`text-sm md:text-md ${
+            isDarkMode ? 'text-gray-300' : 'text-gray-500'
+          }`}
+        >
+          Detail lengkap untuk penjemputan sampah elektronik.
+        </p>
+      </header>
 
+      {/* Card utama */}
       <Card
-        className={`p-4 md:p-6 shadow-md rounded-xl flex-1 overflow-y-auto ${
+        className={`p-6 shadow-md rounded-xl ${
           isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white'
         }`}
       >
-        {/* Grid Content */}
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-          {/* Info Utama */}
-          <section className='p-5'>
-            <h3 className='font-semibold text-lg md:text-xl mb-4'>
-              📋 Informasi Penjemputan
-            </h3>
-            <dl className='space-y-2 text-sm md:text-base'>
+        {/* Info penjemputan */}
+        <section className='mb-4'>
+          <h3 className='text-2xl font-bold mb-3'>Informasi Penjemputan</h3>
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm'>
+            {/* Kolom kiri */}
+            <div className='flex flex-col gap-4'>
               <div>
-                <dt className='font-medium'>Kode</dt>
-                <dd className='text-sm md:text-base'>{p.kode_penjemputan}</dd>
+                <span className='text-xs font-semibold text-gray-400'>
+                  Kode Penjemputan : {''}
+                </span>
+                <span className='text-sm font-medium'>
+                  {p.kode_penjemputan}
+                </span>
               </div>
               <div>
-                <dt className='font-medium'>Tanggal</dt>
-                <dd>
-                  <span className='text-sm md:text-base'>
-                    {new Date(p.waktu_ditambah).toLocaleDateString('id-ID')}
-                  </span>
-                </dd>
+                <span className='text-xs font-semibold text-gray-400'>
+                  Tanggal Dibuat : {''}
+                </span>
+                <span className='text-sm font-medium'>
+                  {formatTanggalID(p.waktu_ditambah)}
+                </span>
               </div>
               <div>
-                <dt className='font-medium'>Alamat</dt>
-                <dd className='text-sm md:text-base'>{p.alamat_jemput}</dd>
+                <span className='text-xs font-semibold text-gray-400'>
+                  Alamat Penjemputan: {''}
+                </span>
+                <span className='text-sm font-medium'>
+                  {p.alamat_penjemputan}
+                </span>
               </div>
-              <div>
-                <dt className='font-medium'>Kurir</dt>
-                <dd className='text-sm md:text-base'>
-                  {p.nama_kurir || 'Belum ditentukan'}
-                </dd>
-              </div>
-              <div>
-                <dt className='font-medium'>Catatan untuk Kurir</dt>
-                <dd className='text-sm md:text-base'>
-                  {p.catatan || 'Tidak ada Catatan yang diinputkan'}
-                </dd>
-              </div>
-            </dl>
-          </section>
+            </div>
 
-          {/* Timeline */}
-          <section className='p-5 '>
-            <h3 className='font-semibold text-lg md:text-xl mb-4 flex items-center gap-2'>
-              <Truck className='w-5 h-5 text-green-500' />
-              Status Penjemputan
+            {/* Kolom kanan */}
+            <div className='flex flex-col gap-4'>
+              <div>
+                <span className='text-xs font-semibold text-gray-400'>
+                  Nama Kurir : {''}
+                </span>
+                <span className='text-sm font-medium'>
+                  {p.nama_kurir || 'Belum ditentukan'}
+                </span>
+              </div>
+              <div>
+                <span className='text-xs font-semibold text-gray-400'>
+                  Waktu Operasional : {''}
+                </span>
+                <span className='text-sm font-medium'>
+                  {p.waktu_operasional || 'Belum ditentukan'}
+                </span>
+              </div>
+              <div>
+                <span className='text-xs font-semibold text-gray-400'>
+                  Catatan : {''}
+                </span>
+                <span className='text-sm font-medium'>
+                  {p.catatan || 'Tidak ada catatan'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Status + Detail sampah */}
+        <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+          <section>
+            <h3 className='text-lg font-semibold mb-2 flex items-center gap-2'>
+              <Truck className='w-5 h-5 text-green-500' /> Status Penjemputan
             </h3>
             <Timeline
-              steps={statusSteps}
-              currentStep={currentStatus}
+              steps={daftarLangkahStatus}
+              currentStep={langkahAktif}
               isDarkMode={isDarkMode}
+              detail={p}
             />
           </section>
-        </div>
 
-        {/* Detail Sampah */}
-        <section className=''>
-          <h3 className='font-semibold text-lg md:text-xl mb-4 flex items-center gap-2'>
-            <FileText className='w-5 h-5 text-green-500' />
-            Detail Sampah
-          </h3>
-          {detail.sampah?.length > 0 ? (
-            <div
-              className={`${
-                detail.sampah.length > 4 ? 'max-h-64 overflow-y-auto pr-2' : ''
-              }`}
-            >
-              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
-                {detail.sampah.map((s) => (
+          <section>
+            <h3 className='text-lg font-semibold mb-3 flex items-center gap-2'>
+              <FileText className='w-5 h-5 text-green-500' /> Detail Sampah
+            </h3>
+            {detailPenjemputan.sampah?.length > 0 ? (
+              <div
+                className={`space-y-3 ${
+                  detailPenjemputan.sampah.length > 3
+                    ? 'max-h-96 overflow-y-auto pr-2'
+                    : ''
+                }`}
+              >
+                {detailPenjemputan.sampah.map((s) => (
                   <ItemSampahCard
                     key={s.id_sampah}
-                    s={s}
+                    data={s}
                     isDarkMode={isDarkMode}
                   />
                 ))}
               </div>
-            </div>
-          ) : (
-            <p className='text-sm text-gray-500 text-center'>
-              Tidak ada data sampah
-            </p>
-          )}
-        </section>
-        {/* Button */}
-        <div className='flex justify-end mt-4'>
-          {currentStatus >= 0 && currentStatus < 3 && (
+            ) : (
+              <p className='text-sm text-gray-500'>Tidak ada data sampah</p>
+            )}
+          </section>
+        </div>
+
+        {/* Tombol batal */}
+        {langkahAktif >= 0 && langkahAktif < 3 && (
+          <div className='flex justify-end mt-4'>
             <Button
               type='button'
               className='bg-red-600 hover:bg-red-700 text-white'
@@ -161,18 +239,18 @@ const DetailLacakPenjemputan = () => {
             >
               Batalkan Penjemputan
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </Card>
 
-      {/* Modal Konfirmasi */}
+      {/* Modal konfirmasi */}
       <ConfirmModal
         isOpen={confirmOpen}
         title='Batalkan Penjemputan'
         message='Apakah Anda yakin ingin membatalkan penjemputan ini?'
         onClose={() => setConfirmOpen(false)}
         onConfirm={async () => {
-          const success = await handleBatalkan();
+          const success = await batalkan(p.id_penjemputan); // <-- kirim ID
           if (success) {
             setConfirmOpen(false);
             navigate(-1);

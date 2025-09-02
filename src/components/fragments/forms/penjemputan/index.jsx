@@ -53,6 +53,7 @@ const FormPenjemputan = ({
     onInputChange('id_waktu_operasional', '');
     onInputChange('alamat_jemput', '');
     onInputChange('catatan', '');
+    onInputChange('daftarSampah', []);
   };
 
   return (

@@ -1,16 +1,27 @@
-// src/views/masyarakat/DashboardMasyarakatView.jsx
 import { Gift, Truck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, SapaanDashboard } from '../../../components/elements';
-import { RiwayatCard, StatCard } from '../../../components/fragments';
+import {
+  PenjemputanMasyarakatCard,
+  StatCard,
+} from '../../../components/fragments';
 import useDarkMode from '../../../hooks/useDarkMode';
-import useDashboardMasyarakat from '../../../hooks/useDashboardMasyarakat';
 import useDocumentTitle from '../../../hooks/useDocumentTitle';
+import useMasyarakat from '../../../hooks/useMasyarakat';
+import usePengguna from '../../../hooks/usePengguna';
 
-const DashboardMasyarakatView = ({ userProfile }) => {
+const DashboardMasyarakatView = () => {
   useDocumentTitle('Dashboard Masyarakat');
   const { isDarkMode } = useDarkMode();
-  const { stats, requests, loading } = useDashboardMasyarakat();
+  const { stats, data, isLoading: loading } = useMasyarakat();
+  const { pengguna } = usePengguna();
+  const navigate = useNavigate();
+
+  const safeStats = stats || {
+    totalPoin: 0,
+    totalPenjemputan: 0,
+    sedangBerlangsung: 0,
+  };
 
   return (
     <div
@@ -19,25 +30,25 @@ const DashboardMasyarakatView = ({ userProfile }) => {
       } space-y-3`}
     >
       <SapaanDashboard
-        userProfile={userProfile}
-        subtitle='Selamat datang di EWasteHub. Yuk kelola e-waste kamu!'
+        pengguna={pengguna}
+        subtitle='Selamat datang di EWasteHub. Yuk kelola sampah elektronik kamu!'
       />
 
       {/* Statistik */}
       <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
         <StatCard
           label='Total Poin'
-          value={stats.totalPoin}
+          value={safeStats.totalPoin}
           icon={<Gift className='w-6 h-6 text-green-500' />}
         />
         <StatCard
           label='Total Penjemputan'
-          value={stats.totalPenjemputan}
+          value={safeStats.totalPenjemputan}
           icon={<Truck className='w-6 h-6 text-green-500' />}
         />
         <StatCard
           label='Sedang Berlangsung'
-          value={stats.sedangBerlangsung}
+          value={safeStats.sedangBerlangsung}
           icon={<Truck className='w-6 h-6 text-green-500' />}
         />
       </div>
@@ -69,10 +80,18 @@ const DashboardMasyarakatView = ({ userProfile }) => {
 
           {loading ? (
             <p className='text-center text-gray-400'>⏳ Memuat data...</p>
-          ) : requests.length > 0 ? (
+          ) : data.length > 0 ? (
             <div className='grid gap-4'>
-              {requests.slice(0, 3).map((req) => (
-                <RiwayatCard key={req.kodePenjemputan} req={req} />
+              {data.slice(0, 3).map((req) => (
+                <PenjemputanMasyarakatCard
+                  key={req.id_penjemputan}
+                  req={req}
+                  onDetail={() =>
+                    navigate(
+                      `/dashboard/masyarakat/riwayat/${req.id_penjemputan}`
+                    )
+                  }
+                />
               ))}
             </div>
           ) : (
