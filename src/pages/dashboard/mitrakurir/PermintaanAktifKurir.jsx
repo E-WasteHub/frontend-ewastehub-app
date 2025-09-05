@@ -15,6 +15,18 @@ import useMitraKurir, {
   useMitraKurirDetail,
 } from '../../../hooks/useMitraKurir';
 
+// 🔹 Utility: Format tanggal ke bahasa Indonesia
+const formatTanggalID = (tanggal) => {
+  if (!tanggal) return '-';
+  const d = new Date(tanggal);
+  if (isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
 // ✅ daftar langkah status (sama dengan DetailLacakPenjemputan)
 const daftarLangkahStatus = [
   {
@@ -150,26 +162,63 @@ const PermintaanAktifKurir = () => {
         <section className='mb-4'>
           <h3 className='text-2xl font-bold mb-3'>Informasi Penjemputan</h3>
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm'>
-            <p>
-              <span className='font-medium'>Kode:</span> {p.kode_penjemputan}
-            </p>
-            <p>
-              <span className='font-medium'>Alamat:</span>{' '}
-              {p.alamat_penjemputan}
-            </p>
-            <p>
-              <span className='font-medium'>Masyarakat:</span>{' '}
-              {p.nama_masyarakat}
-            </p>
-            <p>
-              <span className='font-medium'>Waktu Operasional:</span>{' '}
-              {p.waktu_operasional || '-'}
-            </p>
-            {p.catatan && (
-              <p className='sm:col-span-2 italic text-gray-500'>
-                <span className='font-medium'>Catatan:</span> {p.catatan}
-              </p>
-            )}
+            <div>
+              <span className='text-xs font-semibold text-gray-400'>
+                Kode Penjemputan : {''}
+              </span>
+              <span className='block'>{p.kode_penjemputan}</span>
+            </div>
+            <div>
+              <span className='text-xs font-semibold text-gray-400'>
+                Tanggal Dibuat : {''}
+              </span>
+              <span className='block'>{formatTanggalID(p.waktu_ditambah)}</span>
+            </div>
+            <div>
+              <span className='text-xs font-semibold text-gray-400'>
+                Alamat Penjemputan : {''}
+              </span>
+              <span className='block'>{p.alamat_penjemputan}</span>
+            </div>
+            <div>
+              <span className='text-xs font-semibold text-gray-400'>
+                Nama Masyarakat : {''}
+              </span>
+              <span className='block'>
+                {p.nama_masyarakat || 'Belum ditentukan'}
+              </span>
+            </div>
+            <div>
+              <span className='text-xs font-semibold text-gray-400'>
+                Waktu Operasional : {''}
+              </span>
+              <span className='block'>{p.waktu_operasional || '-'}</span>
+            </div>
+            <div>
+              {p.catatan && (
+                <div className='sm:col-span-2'>
+                  <span className='text-xs font-semibold text-gray-400'>
+                    Catatan Masyarakat : {''}
+                  </span>
+                  <span className='block italic'>{p.catatan}</span>
+                </div>
+              )}
+            </div>
+            <div>
+              {/* Dropbox */}
+              <span className='text-xs font-semibold text-gray-400'>
+                Dropbox Tujuan : {''}
+              </span>
+              <div className='mt-1'>
+                {p.nama_dropbox ? (
+                  <div className='text-sm'>
+                    <p className='font-medium'>{p.nama_dropbox}</p>
+                  </div>
+                ) : (
+                  <p className='text-sm text-gray-500'>-</p>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -288,10 +337,38 @@ const PermintaanAktifKurir = () => {
       <ConfirmModal
         isOpen={confirmOpen}
         title='Batalkan Penjemputan'
-        message='Apakah Anda yakin ingin membatalkan penjemputan ini?'
+        message='Apakah Anda yakin ingin melepaskan penjemputan ini?'
         onClose={() => setConfirmOpen(false)}
-        onConfirm={() => batalkanPermintaan(p.id_penjemputan)}
+        onConfirm={async () => {
+          const res = await batalkanPermintaan(p.id_penjemputan);
+          setConfirmOpen(false);
+          if (res.success) {
+            setAlert({
+              open: true,
+              type: 'success',
+              message:
+                '✅ Penjemputan dilepaskan, kembali ke daftar permintaan!',
+            });
+          } else {
+            setAlert({
+              open: true,
+              type: 'error',
+              message: res.error || '❌ Gagal melepaskan penjemputan',
+            });
+          }
+        }}
       />
+
+      {/* Alert Modal */}
+      {alert.open && (
+        <AlertModal
+          isOpen={alert.open}
+          onClose={() => setAlert({ open: false, type: '', message: '' })}
+          type={alert.type}
+          title={alert.type === 'success' ? 'Berhasil' : 'Gagal'}
+          message={alert.message}
+        />
+      )}
     </div>
   );
 };
