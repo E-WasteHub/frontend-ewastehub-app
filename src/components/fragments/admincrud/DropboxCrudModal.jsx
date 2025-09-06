@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import * as daerahService from '../../../services/daerahService';
 import { Button, InputForm, Modal } from '../../elements';
+import Select from '../../elements/Select';
 
 const DropboxCrudModal = ({
   isOpen,
@@ -22,7 +23,12 @@ const DropboxCrudModal = ({
     const fetchDaerah = async () => {
       try {
         const res = await daerahService.ambilSemua();
-        const data = Array.isArray(res.data) ? res.data : res?.data?.data || [];
+        // Menggunakan pola yang sama seperti useAdminCrud
+        const data = Array.isArray(res?.data?.data)
+          ? res.data.data
+          : Array.isArray(res?.data)
+          ? res.data
+          : [];
         setDaerahOptions(data);
       } catch (err) {
         console.error('❌ Gagal ambil daftar daerah:', err);
@@ -88,22 +94,17 @@ const DropboxCrudModal = ({
           placeholder='Contoh: -6.914744'
         />
 
-        <div>
-          <label className='block text-sm font-medium mb-1'>Daerah</label>
-          <select
-            value={idDaerah}
-            onChange={(e) => setIdDaerah(e.target.value)}
-            className='w-full border rounded px-3 py-2'
-            required
-          >
-            <option value=''>Pilih Daerah</option>
-            {daerahOptions.map((daerah) => (
-              <option key={daerah.id_daerah} value={daerah.id_daerah}>
-                {daerah.nama_daerah}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label='Daerah'
+          value={idDaerah}
+          onChange={setIdDaerah}
+          options={daerahOptions.map((daerah) => ({
+            value: daerah.id_daerah,
+            label: daerah.nama_daerah,
+          }))}
+          placeholder='Pilih Daerah'
+          required
+        />
 
         <div className='flex justify-end gap-2'>
           <Button variant='secondary' onClick={onClose}>

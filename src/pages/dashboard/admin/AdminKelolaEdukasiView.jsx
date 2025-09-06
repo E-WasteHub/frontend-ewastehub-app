@@ -1,10 +1,15 @@
 // src/pages/admin/edukasi/AdminKelolaEdukasiView.jsx
-import { useState } from 'react';
-import DataTable from 'react-data-table-component';
-import EdukasiCrudModal from '../../../components/fragments/admincrud/EdukasiCrudModal';
-import AlertModal from '../../../components/fragments/modals/AlertModal';
-import ConfirmModal from '../../../components/fragments/modals/ConfirmModal';
+import { useMemo, useState } from 'react';
+import { Loading, Pagination } from '../../../components/elements';
+import {
+  AdminTable,
+  ConfirmModal,
+  EdukasiCrudModal,
+  FilterCrud,
+} from '../../../components/fragments';
 import useAdminCrud from '../../../hooks/useAdminCrud';
+import usePagination from '../../../hooks/usePagination';
+import useToast from '../../../hooks/useToast';
 import * as edukasiService from '../../../services/edukasiService';
 
 const AdminKelolaEdukasiView = () => {
@@ -18,70 +23,90 @@ const AdminKelolaEdukasiView = () => {
     isSubmitting,
   } = useAdminCrud(edukasiService);
 
+  const { showAlert } = useToast();
+
   const [crudOpen, setCrudOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState(null);
 
-  const [alertOpen, setAlertOpen] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({
-    title: '',
-    message: '',
-    type: 'info',
-  });
+  // Search state
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('');
+
+  // Filter data by search
+  const filteredData = useMemo(() => {
+    if (!search && !filter) return edukasi;
+    return edukasi.filter((item) => {
+      const matchSearch =
+        !search ||
+        item.judul_konten?.toLowerCase().includes(search.toLowerCase()) ||
+        item.isi_konten?.toLowerCase().includes(search.toLowerCase());
+      let matchFilter = true;
+      if (filter === 'with-image') {
+        matchFilter = !!item.gambar;
+      } else if (filter === 'without-image') {
+        matchFilter = !item.gambar;
+      }
+      return matchSearch && matchFilter;
+    });
+  }, [edukasi, search, filter]);
+
+  // Pagination
+  const { currentPage, setCurrentPage, totalPages, paginatedData } =
+    usePagination(filteredData, 7);
 
   // Tambah / Ubah
   const handleCrudSubmit = async (formValues) => {
     if (editTarget) {
       const res = await ubah(editTarget.id_konten, formValues);
-      setAlertConfig({
-        title: res.success ? 'Berhasil' : 'Gagal',
-        message: res.success
+      showAlert(
+        res.success ? 'Berhasil' : 'Gagal',
+        res.success
           ? 'Konten edukasi berhasil diperbarui'
           : res.error || 'Konten edukasi gagal diperbarui',
-        type: res.success ? 'success' : 'error',
-      });
+        res.success ? 'success' : 'error'
+      );
     } else {
       const res = await tambah(formValues);
-      setAlertConfig({
-        title: res.success ? 'Berhasil' : 'Gagal',
-        message: res.success
+      showAlert(
+        res.success ? 'Berhasil' : 'Gagal',
+        res.success
           ? 'Konten edukasi berhasil ditambahkan'
           : res.error || 'Konten edukasi gagal ditambahkan',
-        type: res.success ? 'success' : 'error',
-      });
+        res.success ? 'success' : 'error'
+      );
     }
 
     setCrudOpen(false);
     setEditTarget(null);
-    setAlertOpen(true);
   };
 
   // Hapus
   const handleDelete = async () => {
     if (!confirmTarget) return;
     const res = await hapus(confirmTarget);
-    setAlertConfig({
-      title: res.success ? 'Berhasil' : 'Gagal',
-      message: res.success
+    showAlert(
+      res.success ? 'Berhasil' : 'Gagal',
+      res.success
         ? 'Konten edukasi berhasil dihapus'
         : res.error || 'Konten edukasi gagal dihapus',
-      type: res.success ? 'success' : 'error',
-    });
+      res.success ? 'success' : 'error'
+    );
     setConfirmOpen(false);
-    setAlertOpen(true);
   };
 
   const columns = [
     {
       name: 'Judul',
-      selector: (row) => row.judul_konten,
+      selector: 'judul_konten',
       sortable: true,
     },
     {
       name: 'Isi Konten',
-      selector: (row) => row.isi_konten.slice(0, 50) + '...',
+      selector: 'isi_konten',
+      cell: (row) => row.isi_konten?.slice(0, 50) + '...' || '-',
     },
     {
       name: 'Gambar',
@@ -105,18 +130,18 @@ const AdminKelolaEdukasiView = () => {
               setEditTarget(row);
               setCrudOpen(true);
             }}
-            className='px-3 py-1 bg-yellow-500 text-white rounded'
+            className='px-3 py-1 text-xs font-medium rounded bg-yellow-500 text-white hover:bg-yellow-600'
           >
-            ✏️ Edit
+            Edit
           </button>
           <button
             onClick={() => {
               setConfirmTarget(row.id_konten);
               setConfirmOpen(true);
             }}
-            className='px-3 py-1 bg-red-600 text-white rounded'
+            className='px-3 py-1 text-xs font-medium rounded bg-red-600 text-white hover:bg-red-700'
           >
-            🗑 Hapus
+            Hapus
           </button>
         </div>
       ),
@@ -125,32 +150,53 @@ const AdminKelolaEdukasiView = () => {
 
   return (
     <div className='max-w-7xl mx-auto p-6 space-y-6'>
-      <div className='flex justify-between items-center'>
+      <div className='space-y-2'>
         <h1 className='text-2xl font-bold'>Kelola Edukasi</h1>
-        <button
-          onClick={() => {
-            setEditTarget(null);
-            setCrudOpen(true);
-          }}
-          className='px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700'
-        >
-          ➕ Tambah Edukasi
-        </button>
+        <p className='text-gray-600'>
+          Kelola konten edukasi tentang pengelolaan sampah elektronik yang ramah
+          lingkungan
+        </p>
       </div>
 
       {isLoading ? (
-        <p>⏳ Memuat data...</p>
+        <Loading mode='inline' text='Memuat data...' />
       ) : error ? (
-        <p className='text-red-500'>{error}</p>
+        <p className='text-red-500'>Error: {error}</p>
+      ) : edukasi.length === 0 ? (
+        <div className='text-center py-8 text-gray-500'>
+          <p>Belum ada konten edukasi.</p>
+          <p>Klik tombol "Tambah Edukasi" untuk menambahkan data pertama.</p>
+        </div>
       ) : (
-        <DataTable
-          columns={columns}
-          data={edukasi}
-          pagination
-          highlightOnHover
-          striped
-          dense
-        />
+        <>
+          <AdminTable
+            columns={columns}
+            data={paginatedData}
+            topContent={
+              <FilterCrud
+                search={search}
+                setSearch={setSearch}
+                filter={filter}
+                setFilter={setFilter}
+                placeholder='Cari konten edukasi...'
+                filterOptions={[
+                  { value: 'with-image', label: 'Dengan Gambar' },
+                  { value: 'without-image', label: 'Tanpa Gambar' },
+                ]}
+                filterLabel='Filter Gambar'
+                onAdd={() => {
+                  setEditTarget(null);
+                  setCrudOpen(true);
+                }}
+              />
+            }
+          />
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+        </>
       )}
 
       {/* Modal CRUD */}
@@ -177,15 +223,6 @@ const AdminKelolaEdukasiView = () => {
         confirmText='Hapus'
         cancelText='Batal'
         isLoading={isSubmitting}
-      />
-
-      {/* Modal Alert */}
-      <AlertModal
-        isOpen={alertOpen}
-        onClose={() => setAlertOpen(false)}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        type={alertConfig.type}
       />
     </div>
   );

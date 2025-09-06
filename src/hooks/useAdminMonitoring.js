@@ -13,9 +13,14 @@ const useAdminMonitoring = (service) => {
     try {
       setIsLoading(true);
       const response = await service.ambilSemua();
-      const rawData = Array.isArray(response?.data)
+
+      // Menggunakan pola yang sama seperti useAdminCrud
+      const rawData = Array.isArray(response?.data?.data)
+        ? response.data.data
+        : Array.isArray(response?.data)
         ? response.data
-        : response?.data?.data || [];
+        : [];
+
       setData(rawData);
     } catch (err) {
       console.error('❌ Gagal fetch transaksi:', err);
@@ -34,7 +39,7 @@ const useAdminMonitoring = (service) => {
     async (id) => {
       try {
         setIsDetailLoading(true);
-        const response = await service.detail(id); // /penjemputan/:id/pelacakan
+        const response = await service.detail(id);
         const rawData = response?.data?.data || null;
         console.log('Detail transaksi:', rawData);
         setDetail(rawData);

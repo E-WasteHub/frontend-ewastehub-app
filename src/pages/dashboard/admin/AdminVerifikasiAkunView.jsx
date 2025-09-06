@@ -1,19 +1,30 @@
-import { useState } from 'react';
-import { Button, Modal } from '../../../components/elements';
-import { AdminTable } from '../../../components/fragments';
-import AlertModal from '../../../components/fragments/modals/AlertModal';
-import ConfirmModal from '../../../components/fragments/modals/ConfirmModal';
+import { useMemo, useState } from 'react';
+import { Button, Modal, Pagination } from '../../../components/elements';
+import {
+  AdminTable,
+  ConfirmModal,
+  FilterCrud,
+} from '../../../components/fragments';
 import useAdminVerifikasi from '../../../hooks/useAdminVerifikasi';
+import useDarkMode from '../../../hooks/useDarkMode';
 import useDocumentTitle from '../../../hooks/useDocumentTitle';
+import usePagination from '../../../hooks/usePagination';
+import useToast from '../../../hooks/useToast';
+import { formatTanggalWaktuIndonesia } from '../../../utils/dateUtils';
 
 const AdminVerifikasiAkunView = () => {
-  useDocumentTitle('Verifikasi Akun');
+  useDocumentTitle('Verifikasi Akun Pengguna');
+  const { isDarkMode } = useDarkMode();
   const { data, isLoading, error, updateStatus, fetchDetail, isSubmitting } =
     useAdminVerifikasi();
 
-  const [selectedUser, setSelectedUser] = useState(null);
+  const { showAlert } = useToast();
 
-  // Modal Confirm
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('');
+
+  // 🔹 Modal Confirm
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmConfig, setConfirmConfig] = useState({
     id_pengguna: null,
@@ -23,22 +34,14 @@ const AdminVerifikasiAkunView = () => {
     confirmType: 'primary',
   });
 
-  // Modal Alert
-  const [alertOpen, setAlertOpen] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({
-    title: '',
-    message: '',
-    type: 'info',
-  });
-
-  // Show detail dokumen
+  // 🔹 Show detail dokumen
   const handleShowDetail = async (id_pengguna) => {
     const res = await fetchDetail(id_pengguna);
     if (res) setSelectedUser(res);
   };
   const handleCloseDetail = () => setSelectedUser(null);
 
-  // Show confirm modal
+  // 🔹 Show confirm modal
   const handleConfirmAction = (id_pengguna, status) => {
     setConfirmConfig({
       id_pengguna,
@@ -53,67 +56,87 @@ const AdminVerifikasiAkunView = () => {
     setConfirmOpen(true);
   };
 
-  // Confirm update
+  // 🔹 Confirm update
   const handleConfirmSubmit = async () => {
     setConfirmOpen(false);
     const { id_pengguna, status } = confirmConfig;
     const res = await updateStatus(id_pengguna, status);
 
     if (res.success) {
-      setAlertConfig({
-        title: 'Berhasil',
-        message: `Akun berhasil diperbarui menjadi ${status}`,
-        type: 'success',
-      });
+      showAlert(
+        'Berhasil',
+        `Akun berhasil diperbarui menjadi ${status}`,
+        'success'
+      );
     } else {
-      setAlertConfig({
-        title: 'Gagal',
-        message: `Gagal memperbarui status akun: ${res.error || ''}`,
-        type: 'error',
-      });
+      showAlert(
+        'Gagal',
+        `Gagal memperbarui status akun: ${res.error || ''}`,
+        'error'
+      );
     }
-    setAlertOpen(true);
   };
 
-  // Kolom tabel
+  // 🔹 Filter data by search & filter
+  const filteredData = useMemo(() => {
+    let temp = data;
+    if (search) {
+      temp = temp.filter(
+        (item) =>
+          item.nama_lengkap?.toLowerCase().includes(search.toLowerCase()) ||
+          item.email?.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+    if (filter) {
+      temp = temp.filter((item) => item.status_pengguna === filter);
+    }
+    return temp;
+  }, [data, search, filter]);
+
+  // 🔹 Pagination
+  const { currentPage, setCurrentPage, totalPages, paginatedData } =
+    usePagination(filteredData, 7);
+
+  // 🔹 Kolom tabel
   const columns = [
     {
-      name: 'Nama Lengkap',
-      selector: (row) => row.nama_lengkap,
-      sortable: true,
+      name: 'Tanggal Daftar',
+      cell: (row) => formatTanggalWaktuIndonesia(row.waktu_dibuat),
     },
-    { name: 'Email', selector: (row) => row.email },
-    { name: 'Peran', selector: (row) => row.peran },
-    { name: 'Status', selector: (row) => row.status_pengguna },
-    {
-      name: 'Detail',
-      cell: (row) => (
-        <button
-          onClick={() => handleShowDetail(row.id_pengguna)}
-          className='px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700'
-        >
-          Lihat
-        </button>
-      ),
-    },
+    { name: 'Kode Pengguna', selector: 'id_pengguna' },
+    { name: 'Nama Pengguna', selector: 'nama_lengkap' },
+    { name: 'Email', selector: 'email', hideOnMobile: true },
+    { name: 'Status Verifikasi', selector: 'status_pengguna' },
     {
       name: 'Aksi',
       cell: (row) => (
         <div className='flex gap-2'>
-          <button
-            onClick={() => handleConfirmAction(row.id_pengguna, 'Aktif')}
-            disabled={isSubmitting}
-            className='px-3 py-1 text-sm rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
-          >
-            Setujui
-          </button>
-          <button
-            onClick={() => handleConfirmAction(row.id_pengguna, 'Belum Aktif')}
-            disabled={isSubmitting}
-            className='px-3 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50'
-          >
-            Tolak
-          </button>
+          {row.status_pengguna === 'Menunggu Verifikasi' ? (
+            <>
+              <button
+                onClick={() => handleShowDetail(row.id_pengguna)}
+                className='px-3 py-1 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700'
+              >
+                Detail
+              </button>
+              <button
+                onClick={() => handleConfirmAction(row.id_pengguna, 'Aktif')}
+                disabled={isSubmitting}
+                className='px-3 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
+              >
+                Verifikasi
+              </button>
+              <button
+                onClick={() => handleConfirmAction(row.id_pengguna, 'Ditolak')}
+                disabled={isSubmitting}
+                className='px-3 py-1 text-xs font-medium rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50'
+              >
+                Tolak
+              </button>
+            </>
+          ) : (
+            <span className='text-gray-500'>-</span>
+          )}
         </div>
       ),
     },
@@ -121,14 +144,46 @@ const AdminVerifikasiAkunView = () => {
 
   return (
     <div className='max-w-7xl mx-auto p-6 space-y-6'>
-      <h1 className='text-2xl font-bold'>Verifikasi Akun</h1>
+      {/* Header */}
+      <header className='mb-4'>
+        <h1 className='text-2xl mb-1 md:text-2xl font-bold'>
+          Verifikasi Akun Pengguna
+        </h1>
+        <p
+          className={`text-sm md:text-md ${
+            isDarkMode ? 'text-gray-300' : 'text-gray-500'
+          }`}
+        >
+          Daftar lengkap untuk proses verifikasi akun pengguna.
+        </p>
+      </header>
 
       {isLoading ? (
-        <p>⏳ Memuat data...</p>
+        <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          Memuat data...
+        </p>
       ) : error ? (
-        <p className='text-red-500'>{error}</p>
+        <p className='text-red-500'>Terjadi kesalahan: {error}</p>
       ) : (
-        <AdminTable columns={columns} data={data} />
+        <>
+          {/* FilterCrud */}
+          <FilterCrud
+            search={search}
+            setSearch={setSearch}
+            filter={filter}
+            setFilter={setFilter}
+          />
+
+          {/* AdminTable */}
+          <AdminTable columns={columns} data={paginatedData} />
+
+          {/* 🔹 Pagination */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+        </>
       )}
 
       {/* Detail Modal */}
@@ -146,7 +201,6 @@ const AdminVerifikasiAkunView = () => {
         ) : (
           <p className='text-gray-500'>Tidak ada dokumen yang tersedia</p>
         )}
-
         <div className='flex justify-end mt-4'>
           <Button onClick={handleCloseDetail} variant='secondary'>
             Tutup
@@ -165,15 +219,6 @@ const AdminVerifikasiAkunView = () => {
         cancelText='Batal'
         confirmType={confirmConfig.confirmType}
         isLoading={isSubmitting}
-      />
-
-      {/* Alert Modal */}
-      <AlertModal
-        isOpen={alertOpen}
-        onClose={() => setAlertOpen(false)}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        type={alertConfig.type}
       />
     </div>
   );

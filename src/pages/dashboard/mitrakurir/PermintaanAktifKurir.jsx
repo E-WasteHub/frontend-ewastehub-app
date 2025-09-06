@@ -1,9 +1,8 @@
 // src/views/kurir/PermintaanAktifKurir.jsx
 import { FileText, Truck } from 'lucide-react';
 import { useState } from 'react';
-import { Alert, Button, Card } from '../../../components/elements';
+import { Alert, Button, Card, Loading } from '../../../components/elements';
 import {
-  AlertModal,
   ConfirmModal,
   ItemSampahCard,
   PilihDropboxModal,
@@ -14,61 +13,14 @@ import useDocumentTitle from '../../../hooks/useDocumentTitle';
 import useMitraKurir, {
   useMitraKurirDetail,
 } from '../../../hooks/useMitraKurir';
-
-// 🔹 Utility: Format tanggal ke bahasa Indonesia
-const formatTanggalID = (tanggal) => {
-  if (!tanggal) return '-';
-  const d = new Date(tanggal);
-  if (isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
-};
-
-// ✅ daftar langkah status (sama dengan DetailLacakPenjemputan)
-const daftarLangkahStatus = [
-  {
-    key: 'diproses',
-    label: 'Menunggu Kurir',
-    description: 'Permintaan berhasil dibuat',
-    timeKey: 'waktu_ditambah',
-    status: 'Diproses',
-  },
-  {
-    key: 'diterima',
-    label: 'Diterima',
-    description: 'Kurir menerima permintaan',
-    timeKey: 'waktu_diterima',
-    status: 'Diterima',
-  },
-  {
-    key: 'dijemput',
-    label: 'Dijemput',
-    description: 'Kurir sampai di lokasi masyarakat',
-    timeKey: 'waktu_dijemput',
-    status: 'Dijemput',
-  },
-  {
-    key: 'selesai',
-    label: 'Selesai',
-    description: 'Sampah disetor ke dropbox',
-    timeKey: 'waktu_selesai',
-    status: 'Selesai',
-  },
-  {
-    key: 'dibatalkan',
-    label: 'Dibatalkan',
-    description: 'Penjemputan dibatalkan',
-    timeKey: 'waktu_dibatalkan',
-    status: 'Dibatalkan',
-  },
-];
+import useToast from '../../../hooks/useToast';
+import { formatTanggalIndonesia } from '../../../utils/dateUtils';
+import { DAFTAR_LANGKAH_STATUS } from '../../../utils/penjemputanUtils';
 
 const PermintaanAktifKurir = () => {
   useDocumentTitle('Permintaan Aktif Kurir');
   const { isDarkMode } = useDarkMode();
+  const { showAlert } = useToast();
 
   // 🔹 Ambil data & actions dari hook kurir
   const {
@@ -90,37 +42,20 @@ const PermintaanAktifKurir = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [dropboxOpen, setDropboxOpen] = useState(false);
 
-  // Alert Modal
-  const [alert, setAlert] = useState({
-    open: false,
-    type: '',
-    message: '',
-  });
-
   // 🔄 Loading state gabungan
   if (isLoading || loadingDetail) {
-    return <p className='text-center py-10'>⏳ Memuat data...</p>;
+    return <Loading mode='overlay' text='Memuat data...' />;
   }
 
   // 🔄 Jika tidak ada permintaan aktif
   if (!permintaanAktif) {
     return (
       <div className='max-w-7xl mx-auto p-8'>
-        {alert.open ? (
-          <AlertModal
-            isOpen={alert.open}
-            type={alert.type}
-            title={alert.type === 'success' ? 'Berhasil' : 'Gagal'}
-            message={alert.message}
-            onClose={() => setAlert({ open: false, type: '', message: '' })}
-          />
-        ) : (
-          <Card className='p-6 text-center rounded-3xl'>
-            <p className={isDarkMode ? 'text-white' : 'text-slate-800'}>
-              ❌ Tidak ada penjemputan aktif saat ini.
-            </p>
-          </Card>
-        )}
+        <Card className='p-6 text-center rounded-3xl'>
+          <p className={isDarkMode ? 'text-white' : 'text-slate-800'}>
+            ❌ Tidak ada penjemputan aktif saat ini.
+          </p>
+        </Card>
       </div>
     );
   }
@@ -172,7 +107,9 @@ const PermintaanAktifKurir = () => {
               <span className='text-xs font-semibold text-gray-400'>
                 Tanggal Dibuat : {''}
               </span>
-              <span className='block'>{formatTanggalID(p.waktu_ditambah)}</span>
+              <span className='block'>
+                {formatTanggalIndonesia(p.waktu_ditambah)}
+              </span>
             </div>
             <div>
               <span className='text-xs font-semibold text-gray-400'>
@@ -231,7 +168,7 @@ const PermintaanAktifKurir = () => {
               Status Penjemputan
             </h3>
             <Timeline
-              steps={daftarLangkahStatus}
+              steps={DAFTAR_LANGKAH_STATUS}
               currentStep={
                 currentStatus === 'Dibatalkan'
                   ? -1
@@ -292,24 +229,24 @@ const PermintaanAktifKurir = () => {
               onClick={async () => {
                 const res = await tandaiSelesai(p.id_penjemputan);
                 if (res.success) {
-                  setAlert({
-                    open: true,
-                    type: 'success',
-                    message: '✅ Penjemputan telah selesai!',
-                  });
+                  showAlert(
+                    'Berhasil',
+                    '✅ Penjemputan telah selesai!',
+                    'success'
+                  );
                 } else {
-                  setAlert({
-                    open: true,
-                    type: 'error',
-                    message: res.error || '❌ Gagal menyelesaikan penjemputan',
-                  });
+                  showAlert(
+                    'Gagal',
+                    res.error || '❌ Gagal menyelesaikan penjemputan',
+                    'error'
+                  );
                 }
               }}
             >
               Selesaikan
             </Button>
           )}
-          {['Diterima', 'Dijemput'].includes(currentStatus) && (
+          {['Diterima'].includes(currentStatus) && (
             <Button
               type='button'
               className='bg-red-600 hover:bg-red-700 text-white'
@@ -343,32 +280,20 @@ const PermintaanAktifKurir = () => {
           const res = await batalkanPermintaan(p.id_penjemputan);
           setConfirmOpen(false);
           if (res.success) {
-            setAlert({
-              open: true,
-              type: 'success',
-              message:
-                '✅ Penjemputan dilepaskan, kembali ke daftar permintaan!',
-            });
+            showAlert(
+              'Berhasil',
+              '✅ Penjemputan dilepaskan, kembali ke daftar permintaan!',
+              'success'
+            );
           } else {
-            setAlert({
-              open: true,
-              type: 'error',
-              message: res.error || '❌ Gagal melepaskan penjemputan',
-            });
+            showAlert(
+              'Gagal',
+              res.error || '❌ Gagal melepaskan penjemputan',
+              'error'
+            );
           }
         }}
       />
-
-      {/* Alert Modal */}
-      {alert.open && (
-        <AlertModal
-          isOpen={alert.open}
-          onClose={() => setAlert({ open: false, type: '', message: '' })}
-          type={alert.type}
-          title={alert.type === 'success' ? 'Berhasil' : 'Gagal'}
-          message={alert.message}
-        />
-      )}
     </div>
   );
 };

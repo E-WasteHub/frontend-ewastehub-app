@@ -1,8 +1,12 @@
 // src/views/dashboard/mitra-kurir/DashboardMitraKurirView.jsx
 import { ArrowRight, Package, Star, Truck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Alert, Card, SapaanDashboard } from '../../../components/elements';
-import { PenjemputanKurirCard, StatCard } from '../../../components/fragments'; // ✅ import card kurir
+import { Alert, Card, Loading } from '../../../components/elements';
+import {
+  PenjemputanKurirCard,
+  SapaanDashboard,
+  StatCard,
+} from '../../../components/fragments';
 import useDarkMode from '../../../hooks/useDarkMode';
 import useDocumentTitle from '../../../hooks/useDocumentTitle';
 import useMitraKurir from '../../../hooks/useMitraKurir';
@@ -92,7 +96,7 @@ const DashboardMitraKurirView = () => {
           </div>
 
           {isLoading ? (
-            <p className='text-center text-gray-400'>⏳ Memuat data...</p>
+            <Loading mode='inline' text='Memuat data...' />
           ) : penjemputanTersedia.length === 0 ? (
             <div className='text-center py-8'>
               <Truck

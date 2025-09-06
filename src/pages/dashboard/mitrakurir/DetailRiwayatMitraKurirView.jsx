@@ -1,62 +1,16 @@
 // src/views/kurir/DetailRiwayatMitraKurirView.jsx
 import { FileText, Truck } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import { Card } from '../../../components/elements';
+import { Card, Loading } from '../../../components/elements';
 import { ItemSampahCard, Timeline } from '../../../components/fragments';
 import useDarkMode from '../../../hooks/useDarkMode';
 import useDocumentTitle from '../../../hooks/useDocumentTitle';
 import { useMitraKurirDetail } from '../../../hooks/useMitraKurir';
-
-// 🔹 Utility: Format tanggal ke bahasa Indonesia
-const formatTanggalID = (tanggal) => {
-  if (!tanggal) return '-';
-  const d = new Date(tanggal);
-  if (isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
-};
-
-// 🔹 Step status penjemputan
-const daftarLangkahStatus = [
-  {
-    key: 'diproses',
-    label: 'Menunggu Kurir',
-    description: 'Permintaan berhasil dibuat',
-    timeKey: 'waktu_ditambah',
-    status: 'Diproses',
-  },
-  {
-    key: 'diterima',
-    label: 'Diterima',
-    description: 'Kurir menerima permintaan',
-    timeKey: 'waktu_diterima',
-    status: 'Diterima',
-  },
-  {
-    key: 'dijemput',
-    label: 'Dijemput',
-    description: 'Kurir sampai di lokasi masyarakat',
-    timeKey: 'waktu_dijemput',
-    status: 'Dijemput',
-  },
-  {
-    key: 'selesai',
-    label: 'Selesai',
-    description: 'Sampah sudah disetor ke dropbox',
-    timeKey: 'waktu_selesai',
-    status: 'Selesai',
-  },
-  {
-    key: 'dibatalkan',
-    label: 'Dibatalkan',
-    description: 'Penjemputan dibatalkan',
-    timeKey: 'waktu_dibatalkan',
-    status: 'Dibatalkan',
-  },
-];
+import { formatTanggalIndonesia } from '../../../utils/dateUtils';
+import {
+  DAFTAR_LANGKAH_STATUS,
+  dapatkanLangkahAktif,
+} from '../../../utils/penjemputanUtils';
 
 const DetailRiwayatMitraKurirView = () => {
   useDocumentTitle('Detail Riwayat Penjemputan');
@@ -70,19 +24,7 @@ const DetailRiwayatMitraKurirView = () => {
     // error,
   } = useMitraKurirDetail(id_penjemputan);
 
-  // 🔹 Helper: tentukan langkah aktif
-  const getLangkahAktif = (penjemputan) => {
-    if (!penjemputan) return 0;
-    if (penjemputan.waktu_dibatalkan) return -1;
-    if (penjemputan.waktu_selesai) return 3;
-    if (penjemputan.waktu_dijemput) return 2;
-    if (penjemputan.waktu_diterima) return 1;
-    if (penjemputan.waktu_ditambah) return 0;
-    return 0;
-  };
-
-  if (isLoading)
-    return <p className='p-6 text-center text-gray-500'>⏳ Memuat detail...</p>;
+  if (isLoading) return <Loading mode='overlay' text='Memuat detail...' />;
 
   if (!detailRiwayat?.penjemputan) {
     return (
@@ -91,7 +33,7 @@ const DetailRiwayatMitraKurirView = () => {
   }
 
   const p = detailRiwayat.penjemputan;
-  const langkahAktif = getLangkahAktif(p);
+  const langkahAktif = dapatkanLangkahAktif(p);
 
   return (
     <div
@@ -132,7 +74,9 @@ const DetailRiwayatMitraKurirView = () => {
               <span className='text-xs font-semibold text-gray-400'>
                 Tanggal Dibuat : {''}
               </span>
-              <span className='block'>{formatTanggalID(p.waktu_ditambah)}</span>
+              <span className='block'>
+                {formatTanggalIndonesia(p.waktu_ditambah)}
+              </span>
             </div>
             <div>
               <span className='text-xs font-semibold text-gray-400'>
@@ -191,7 +135,7 @@ const DetailRiwayatMitraKurirView = () => {
               Status Penjemputan
             </h3>
             <Timeline
-              steps={daftarLangkahStatus}
+              steps={DAFTAR_LANGKAH_STATUS}
               currentStep={langkahAktif}
               isDarkMode={isDarkMode}
               detail={p}

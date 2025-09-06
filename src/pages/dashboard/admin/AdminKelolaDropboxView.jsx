@@ -1,10 +1,15 @@
 // src/pages/admin/dropbox/AdminKelolaDropboxView.jsx
-import { useState } from 'react';
-import DataTable from 'react-data-table-component';
-import DropboxCrudModal from '../../../components/fragments/admincrud/DropboxCrudModal';
-import AlertModal from '../../../components/fragments/modals/AlertModal';
-import ConfirmModal from '../../../components/fragments/modals/ConfirmModal';
+import { useMemo, useState } from 'react';
+import { Loading, Pagination } from '../../../components/elements';
+import {
+  AdminTable,
+  ConfirmModal,
+  DropboxCrudModal,
+  FilterCrud,
+} from '../../../components/fragments';
 import useAdminCrud from '../../../hooks/useAdminCrud';
+import usePagination from '../../../hooks/usePagination';
+import useToast from '../../../hooks/useToast';
 import * as dropboxService from '../../../services/dropboxService';
 
 const AdminKelolaDropboxView = () => {
@@ -18,74 +23,103 @@ const AdminKelolaDropboxView = () => {
     isSubmitting,
   } = useAdminCrud(dropboxService);
 
+  const { showAlert } = useToast();
+
   const [crudOpen, setCrudOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState(null);
 
-  const [alertOpen, setAlertOpen] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({
-    title: '',
-    message: '',
-    type: 'info',
-  });
+  // Search state
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('');
+
+  // Filter data by search
+  const filteredData = useMemo(() => {
+    if (!search && !filter) return dropbox;
+    return dropbox.filter((item) => {
+      const matchSearch =
+        !search ||
+        item.nama_dropbox?.toLowerCase().includes(search.toLowerCase()) ||
+        item.nama_daerah?.toLowerCase().includes(search.toLowerCase());
+      const matchFilter =
+        !filter ||
+        item.nama_daerah?.toLowerCase().includes(filter.toLowerCase());
+      return matchSearch && matchFilter;
+    });
+  }, [dropbox, search, filter]);
+
+  // Get unique areas for filter
+  const areaOptions = useMemo(() => {
+    const uniqueAreas = [
+      ...new Set(dropbox.map((item) => item.nama_daerah).filter(Boolean)),
+    ];
+    return uniqueAreas.map((area) => ({
+      value: area,
+      label: area,
+    }));
+  }, [dropbox]);
+
+  // Pagination
+  const { currentPage, setCurrentPage, totalPages, paginatedData } =
+    usePagination(filteredData, 7);
 
   // Tambah / Ubah
   const handleCrudSubmit = async (formValues) => {
     if (editTarget) {
       const res = await ubah(editTarget.id_dropbox, formValues);
-      setAlertConfig({
-        title: res.success ? 'Berhasil' : 'Gagal',
-        message: res.success
+      showAlert(
+        res.success ? 'Berhasil' : 'Gagal',
+        res.success
           ? 'Dropbox berhasil diperbarui'
           : res.error || 'Dropbox gagal diperbarui',
-        type: res.success ? 'success' : 'error',
-      });
+        res.success ? 'success' : 'error'
+      );
     } else {
       const res = await tambah(formValues);
-      setAlertConfig({
-        title: res.success ? 'Berhasil' : 'Gagal',
-        message: res.success
+      showAlert(
+        res.success ? 'Berhasil' : 'Gagal',
+        res.success
           ? 'Dropbox berhasil ditambahkan'
           : res.error || 'Dropbox gagal ditambahkan',
-        type: res.success ? 'success' : 'error',
-      });
+        res.success ? 'success' : 'error'
+      );
     }
 
     setCrudOpen(false);
     setEditTarget(null);
-    setAlertOpen(true);
   };
 
   // Hapus
   const handleDelete = async () => {
     if (!confirmTarget) return;
     const res = await hapus(confirmTarget);
-    setAlertConfig({
-      title: res.success ? 'Berhasil' : 'Gagal',
-      message: res.success
+    showAlert(
+      res.success ? 'Berhasil' : 'Gagal',
+      res.success
         ? 'Dropbox berhasil dihapus'
         : res.error || 'Dropbox gagal dihapus',
-      type: res.success ? 'success' : 'error',
-    });
+      res.success ? 'success' : 'error'
+    );
     setConfirmOpen(false);
-    setAlertOpen(true);
   };
 
   const columns = [
     {
       name: 'Nama Dropbox',
-      selector: (row) => row.nama_dropbox,
+      selector: 'nama_dropbox',
       sortable: true,
     },
     {
       name: 'Koordinat',
-      selector: (row) => `${row.latitude}, ${row.longitude}`,
+      selector: 'koordinat',
+      cell: (row) => `${row.latitude}, ${row.longitude}`,
     },
     {
       name: 'Daerah',
-      selector: (row) => row.nama_daerah || '-',
+      selector: 'nama_daerah',
+      cell: (row) => row.nama_daerah || '-',
     },
     {
       name: 'Aksi',
@@ -96,18 +130,18 @@ const AdminKelolaDropboxView = () => {
               setEditTarget(row);
               setCrudOpen(true);
             }}
-            className='px-3 py-1 bg-yellow-500 text-white rounded'
+            className='px-3 py-1 text-xs font-medium rounded bg-yellow-500 text-white hover:bg-yellow-600'
           >
-            ✏️ Edit
+            Edit
           </button>
           <button
             onClick={() => {
               setConfirmTarget(row.id_dropbox);
               setConfirmOpen(true);
             }}
-            className='px-3 py-1 bg-red-600 text-white rounded'
+            className='px-3 py-1 text-xs font-medium rounded bg-red-600 text-white hover:bg-red-700'
           >
-            🗑 Hapus
+            Hapus
           </button>
         </div>
       ),
@@ -116,32 +150,50 @@ const AdminKelolaDropboxView = () => {
 
   return (
     <div className='max-w-7xl mx-auto p-6 space-y-6'>
-      <div className='flex justify-between items-center'>
+      <div className='space-y-2'>
         <h1 className='text-2xl font-bold'>Kelola Dropbox</h1>
-        <button
-          onClick={() => {
-            setEditTarget(null);
-            setCrudOpen(true);
-          }}
-          className='px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700'
-        >
-          ➕ Tambah Dropbox
-        </button>
+        <p className='text-gray-600'>
+          Kelola lokasi dropbox untuk pengumpulan sampah elektronik di berbagai
+          daerah
+        </p>
       </div>
 
       {isLoading ? (
-        <p>⏳ Memuat data...</p>
+        <Loading mode='inline' text='Memuat data...' />
       ) : error ? (
-        <p className='text-red-500'>{error}</p>
+        <p className='text-red-500'>Error: {error}</p>
+      ) : dropbox.length === 0 ? (
+        <div className='text-center py-8 text-gray-500'>
+          <p>Belum ada data dropbox.</p>
+          <p>Klik tombol "Tambah Dropbox" untuk menambahkan data pertama.</p>
+        </div>
       ) : (
-        <DataTable
-          columns={columns}
-          data={dropbox}
-          pagination
-          highlightOnHover
-          striped
-          dense
-        />
+        <>
+          <AdminTable
+            columns={columns}
+            data={paginatedData}
+            topContent={
+              <FilterCrud
+                search={search}
+                setSearch={setSearch}
+                filter={filter}
+                setFilter={setFilter}
+                placeholder='Cari dropbox...'
+                filterOptions={areaOptions}
+                filterLabel='Filter Daerah'
+                onAdd={() => {
+                  setEditTarget(null);
+                  setCrudOpen(true);
+                }}
+              />
+            }
+          />
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+        </>
       )}
 
       {/* Modal CRUD */}
@@ -168,15 +220,6 @@ const AdminKelolaDropboxView = () => {
         confirmText='Hapus'
         cancelText='Batal'
         isLoading={isSubmitting}
-      />
-
-      {/* Modal Alert */}
-      <AlertModal
-        isOpen={alertOpen}
-        onClose={() => setAlertOpen(false)}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        type={alertConfig.type}
       />
     </div>
   );

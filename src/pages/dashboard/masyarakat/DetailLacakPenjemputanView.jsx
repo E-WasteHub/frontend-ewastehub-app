@@ -2,9 +2,8 @@
 import { FileText, Truck } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Card } from '../../../components/elements';
+import { Button, Card, Loading } from '../../../components/elements';
 import {
-  AlertModal,
   ConfirmModal,
   ItemSampahCard,
   Timeline,
@@ -14,56 +13,17 @@ import useDocumentTitle from '../../../hooks/useDocumentTitle';
 import useMasyarakat, {
   useMasyarakatDetail,
 } from '../../../hooks/useMasyarakat';
-
-// Utility: format tanggal ke bahasa Indonesia
-const formatTanggalID = (tanggal) => {
-  if (!tanggal) return '-';
-  const d = new Date(tanggal);
-  if (isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
-};
-
-// Daftar step status untuk timeline
-const daftarLangkahStatus = [
-  {
-    key: 'diproses',
-    label: 'Menunggu Kurir',
-    description: 'Permintaan berhasil dibuat',
-    timeKey: 'waktu_ditambah',
-  },
-  {
-    key: 'diterima',
-    label: 'Diterima',
-    description: 'Kurir menerima permintaan',
-    timeKey: 'waktu_diterima',
-  },
-  {
-    key: 'dijemput',
-    label: 'Dijemput Kurir',
-    description: 'Kurir sampai di lokasi masyarakat',
-    timeKey: 'waktu_dijemput',
-  },
-  {
-    key: 'selesai',
-    label: 'Selesai',
-    description: 'Sampah sudah disetor ke dropbox',
-    timeKey: 'waktu_selesai',
-  },
-  {
-    key: 'dibatalkan',
-    label: 'Dibatalkan',
-    description: 'Penjemputan dibatalkan',
-    timeKey: 'waktu_dibatalkan',
-  },
-];
+import useToast from '../../../hooks/useToast';
+import { formatTanggalIndonesia } from '../../../utils/dateUtils';
+import {
+  DAFTAR_LANGKAH_STATUS,
+  dapatkanLangkahAktif,
+} from '../../../utils/penjemputanUtils';
 
 const DetailLacakPenjemputan = () => {
   useDocumentTitle('Detail Penjemputan');
   const { isDarkMode } = useDarkMode();
+  const { showAlert } = useToast(); // ✅ Add toast
   const { id_penjemputan } = useParams();
   const navigate = useNavigate();
 
@@ -73,25 +33,10 @@ const DetailLacakPenjemputan = () => {
   const { batalkan } = useMasyarakat();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [alertOpen, setAlertOpen] = useState(false);
-
-  // Helper untuk menentukan langkah aktif berdasarkan field waktu
-  const getLangkahAktif = (penjemputan) => {
-    if (!penjemputan) return 0;
-    if (penjemputan.waktu_dibatalkan) return -1;
-    if (penjemputan.waktu_selesai) return 3;
-    if (penjemputan.waktu_dijemput) return 2;
-    if (penjemputan.waktu_diterima) return 1;
-    if (penjemputan.waktu_ditambah) return 0;
-    return 0;
-  };
+  // ❌ Removed alertOpen state - using toast now
 
   if (isLoading) {
-    return (
-      <div className='p-6 text-center text-gray-500'>
-        Memuat detail penjemputan...
-      </div>
-    );
+    return <Loading mode='overlay' text='Memuat detail penjemputan...' />;
   }
 
   if (!detailPenjemputan?.penjemputan) {
@@ -103,7 +48,7 @@ const DetailLacakPenjemputan = () => {
   }
 
   const p = detailPenjemputan.penjemputan;
-  const langkahAktif = getLangkahAktif(p);
+  const langkahAktif = dapatkanLangkahAktif(p);
 
   return (
     <div
@@ -143,7 +88,9 @@ const DetailLacakPenjemputan = () => {
               <span className='text-xs font-semibold text-gray-400'>
                 Tanggal Dibuat : {''}
               </span>
-              <span className='block'>{formatTanggalID(p.waktu_ditambah)}</span>
+              <span className='block'>
+                {formatTanggalIndonesia(p.waktu_ditambah)}
+              </span>
             </div>
             <div>
               <span className='text-xs font-semibold text-gray-400'>
@@ -200,7 +147,7 @@ const DetailLacakPenjemputan = () => {
               <Truck className='w-5 h-5 text-green-500' /> Status Penjemputan
             </h3>
             <Timeline
-              steps={daftarLangkahStatus}
+              steps={DAFTAR_LANGKAH_STATUS}
               currentStep={langkahAktif}
               isDarkMode={isDarkMode}
               detail={p}
@@ -257,21 +204,14 @@ const DetailLacakPenjemputan = () => {
           const success = await batalkan(p.id_penjemputan);
           if (success) {
             setConfirmOpen(false);
-            setAlertOpen(true);
+            showAlert(
+              'Berhasil',
+              'Penjemputan berhasil dibatalkan.',
+              'success'
+            );
+            setTimeout(() => navigate(-1), 1500); // Navigate after toast
           }
         }}
-      />
-
-      {/* Modal alert */}
-      <AlertModal
-        isOpen={alertOpen}
-        onClose={() => {
-          setAlertOpen(false);
-          navigate(-1);
-        }}
-        title='Penjemputan Dibatalkan'
-        message='Penjemputan berhasil dibatalkan.'
-        type='success'
       />
     </div>
   );

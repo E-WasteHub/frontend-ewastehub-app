@@ -1,5 +1,6 @@
 // src/hooks/useAdminCrud.js
 import { useCallback, useEffect, useState } from 'react';
+import { ambilDataArrayAman } from '../utils/penjemputanUtils';
 
 const useAdminCrud = (service) => {
   const [data, setData] = useState([]);
@@ -13,11 +14,11 @@ const useAdminCrud = (service) => {
     try {
       setIsLoading(true);
       const response = await service.ambilSemua();
-      const rawData = Array.isArray(response?.data)
-        ? response.data
-        : response?.data?.data || [];
+      // Fix: data berada di response.data.data, bukan response.data
+      const rawData = ambilDataArrayAman(response.data, 'data');
       setData(rawData);
     } catch (err) {
+      console.error('❌ useAdminCrud: Error fetching data:', err);
       setError('Gagal memuat data', err);
       setData([]);
     } finally {
